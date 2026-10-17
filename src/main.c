@@ -62,7 +62,7 @@ int main(void){
             int ye = exit_button.y+(exit_button.height-30)/2;
             Color button_color1 =hover_exit ? PURPLE : DARKPURPLE;
             DrawRectangleRec(exit_button, button_color1);
-            DrawText("QUIET", xe, ye, 30, WHITE);
+            DrawText("exit", xe, ye, 30, WHITE);
            
             
         }
