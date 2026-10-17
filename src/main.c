@@ -7,6 +7,7 @@ int main(void){
     InitWindow(1080,720,"Call of the Night Spirit"); //Initialize the window.
     SetTargetFPS(60); // Set target fps.
     SetExitKey(KEY_NULL);
+    InitAudioDevice();
     GameScreen screen = Screen_Menu;
     Rectangle start_button = {390, 350, 300, 70};  
     
@@ -15,6 +16,11 @@ int main(void){
     Rectangle exit_button = {390, 450, 300, 70};
     bool quiet = false;
 
+    Music menu_music = LoadMusicStream("assets/an_untold_legend_v2.wav");
+    SetMusicVolume(menu_music, 0.5f);
+    PlayMusicStream(menu_music);
+
+
     while(!quiet && !WindowShouldClose()){
         Vector2 mouse = GetMousePosition();
         bool hover = CheckCollisionPointRec(mouse, start_button);
@@ -22,6 +28,8 @@ int main(void){
         if(screen == Screen_Menu){
             if(hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 screen = Screen_Play;
+                PauseMusicStream(menu_music);
+
             }
             else if(hover_exit && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 quiet = true;
@@ -30,9 +38,11 @@ int main(void){
         else if(screen == Screen_Play){
             if(IsKeyPressed(KEY_ESCAPE)){
                 screen = Screen_Menu;
+                ResumeMusicStream(menu_music);
             }
         }
         
+        UpdateMusicStream(menu_music);
         BeginDrawing();
         ClearBackground(BLACK);
         if(screen == Screen_Menu){
@@ -52,12 +62,14 @@ int main(void){
             int ye = exit_button.y+(exit_button.height-30)/2;
             Color button_color1 =hover_exit ? PURPLE : DARKPURPLE;
             DrawRectangleRec(exit_button, button_color1);
-            DrawText("QUIET", xe, ye, 30, WHITE);
+            DrawText("exit", xe, ye, 30, WHITE);
            
             
         }
         EndDrawing();
     }
+    UnloadMusicStream(menu_music);
+    CloseAudioDevice();
     CloseWindow();
 
     return 0;
