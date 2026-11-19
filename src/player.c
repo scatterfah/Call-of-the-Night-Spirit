@@ -1,6 +1,7 @@
 #include <math.h>
 #include "raylib.h"
 #include "player.h"
+#include "world.h"
 
 #define PLAYER_RADIUS 20.0f
 #define PLAYER_SPEED  250.0f      /* pixels per second */
@@ -19,19 +20,20 @@ void player_update(GameState *g) {
         dx /= len;
         dy /= len;
 
-        /* 3. Move by speed x time of the frame, so every computer is equal */
+        /* 3. Move by speed x frame time, one axis at a time, so the player
+              slides along a wall instead of sticking to it */
         float step = PLAYER_SPEED * GetFrameTime();
-        g->player_x += dx * step;
-        g->player_y += dy * step;
-    }
 
-    /* 4. Keep the player inside the window */
-    float w = (float)GetScreenWidth();
-    float h = (float)GetScreenHeight();
-    if (g->player_x < PLAYER_RADIUS)     g->player_x = PLAYER_RADIUS;
-    if (g->player_x > w - PLAYER_RADIUS) g->player_x = w - PLAYER_RADIUS;
-    if (g->player_y < PLAYER_RADIUS)     g->player_y = PLAYER_RADIUS;
-    if (g->player_y > h - PLAYER_RADIUS) g->player_y = h - PLAYER_RADIUS;
+        float new_x = g->player_x + dx * step;
+        if (!world_circle_blocked(new_x, g->player_y, PLAYER_RADIUS)) {
+            g->player_x = new_x;
+        }
+
+        float new_y = g->player_y + dy * step;
+        if (!world_circle_blocked(g->player_x, new_y, PLAYER_RADIUS)) {
+            g->player_y = new_y;
+        }
+    }
 }
 
 void player_draw(const GameState *g) {
