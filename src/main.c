@@ -46,23 +46,23 @@ int main(void){
         BeginDrawing();
         ClearBackground(BLACK);
         if(screen == Screen_Menu){
-            int w = MeasureText("Call the Night Spirit", 60);
+            int w = MeasureText("Call of the Night Spirit", 60);
             int x = (1080 - w) / 2;
-            DrawText("Call the Night Spirit",x,150,60,RED); //DrawText(char text, int posX, int posY, int fontSize, Color color);
+            DrawText("Call of The Night Spirit",x,150,60,RED); //DrawText(char text, int posX, int posY, int fontSize, Color color);
 
             int ww = MeasureText("START",30);
             int xx = start_button.x+(start_button.width - ww)/2;
             int yy = start_button.y+(start_button.height - 30)/2;
             Color button_color = hover ? PURPLE : DARKPURPLE;
             DrawRectangleRec(start_button, button_color);
-            DrawText("START", xx, yy, 30, WHITE );
+            DrawText("Start", xx, yy, 30, WHITE );
 
             int ex = MeasureText("EXIT",30);
             int xe = exit_button.x+(exit_button.width-ex)/2;
             int ye = exit_button.y+(exit_button.height-30)/2;
             Color button_color1 =hover_exit ? PURPLE : DARKPURPLE;
             DrawRectangleRec(exit_button, button_color1);
-            DrawText("exit", xe, ye, 30, WHITE);
+            DrawText("Exit", xe, ye, 30, WHITE);
            
             
         }
