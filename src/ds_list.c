@@ -67,3 +67,15 @@ ListNode *list_push_front(List *list, void *data){
     list -> size++;
     return node;
 }
+/* Frees the nodes and the list. It does NOT free the data the nodes point to. */
+void list_destroy(List *list) {
+    if (list == NULL) return;
+
+    ListNode *node = list->head;
+    while (node != NULL) {
+        ListNode *next = node->next;    /* save next BEFORE freeing the node */
+        free(node);
+        node = next;
+    }
+    free(list);
+}
