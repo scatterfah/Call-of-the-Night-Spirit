@@ -1,2 +1,8 @@
 *.o
 *.exe
+
+game
+game.exe
+src/*.o
+tests/test_ds
+tests/test_list
