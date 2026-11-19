@@ -2,6 +2,7 @@
 #include "game.h"
 #include "player.h"
 #include "zombie.h"
+#include "combat.h"
 
 typedef enum{
     Screen_Menu, Screen_Play, Screen_Scores
@@ -33,7 +34,8 @@ int main(void){
                 screen = Screen_Play;
                 PauseMusicStream(menu_music);
                 game_init(&game);
-                zombies_reset();                 // NEW: reset the zombie timers
+                zombies_reset();
+                combat_reset();                  // NEW: reset the fire cooldown
             }
             else if(hover_exit && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 quiet = true;
@@ -47,13 +49,9 @@ int main(void){
             }
             else{
                 player_update(&game);
-                zombies_update(&game);           // NEW: spawn, chase, remove the dead
-
-                /* TEMP test key: press K to kill the first zombie.
-                   Remove this once Member C's shooting is merged. */
-                if(IsKeyPressed(KEY_K) && game.zombies->head != NULL){
-                    ((Zombie *)game.zombies->head->data)->hp = 0;
-                }
+                combat_fire(&game);              // NEW: shoot while the mouse is held
+                combat_update(&game);            // NEW: move bullets, hit zombies
+                zombies_update(&game);           // removes the dead and counts kills
             }
         }
 
@@ -80,14 +78,14 @@ int main(void){
             DrawText("Exit", xe, ye, 30, WHITE);
         }
         else if(screen == Screen_Play){
-            zombies_draw(&game);                 // NEW: draw zombies under the player
+            zombies_draw(&game);
+            combat_draw(&game);                  // NEW: bullets above zombies
             player_draw(&game);
 
-            /* TEMP info line, Member D's HUD replaces this later */
             DrawText(TextFormat("HP: %d    Kills: %d    Zombies: %d",
                      game.player_hp, game.kills, (int)list_size(game.zombies)),
                      20, 20, 24, WHITE);
-            DrawText("ESC: menu   K: kill first zombie (test)", 20, 50, 18, GRAY);
+            DrawText("WASD: move   Hold left mouse: shoot   ESC: menu", 20, 50, 18, GRAY);
         }
         EndDrawing();
     }

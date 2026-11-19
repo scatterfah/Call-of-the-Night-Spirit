@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include "game.h"
+#include "combat.h"
 
 void game_init(GameState *g) {
     g->zombies    = list_create();
     g->wave_queue = queue_create();
     g->weapons    = stack_create();
-    g->bullets    = pool_create(sizeof(float) * 4, 100);   /* placeholder size, C changes it later */
+    g->bullets    = pool_create(sizeof(Bullet), 100);   /* up to 100 bullets at once */
 
     g->kills      = 0;
     g->kill_quota = 10;
