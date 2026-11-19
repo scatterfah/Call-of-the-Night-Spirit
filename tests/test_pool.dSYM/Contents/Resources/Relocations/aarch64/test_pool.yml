@@ -1,5 +1,5 @@
 ---
 triple:          'arm64-apple-darwin'
-binary-path:     'tests/test_heap'
+binary-path:     'tests/test_pool'
 relocations:     []
 ...
