@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "game.h"
 
 void game_init(GameState *g) {
@@ -15,6 +16,11 @@ void game_init(GameState *g) {
 }
 
 void game_free(GameState *g) {
+    /* the list only frees its nodes, so free every zombie first */
+    for (ListNode *n = g->zombies->head; n != NULL; n = n->next) {
+        free(n->data);
+    }
+
     list_destroy(g->zombies);
     queue_destroy(g->wave_queue);
     stack_destroy(g->weapons);

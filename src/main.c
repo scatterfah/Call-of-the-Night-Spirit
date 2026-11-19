@@ -1,40 +1,39 @@
 #include <raylib.h>
 #include "game.h"
 #include "player.h"
+#include "zombie.h"
 
 typedef enum{
     Screen_Menu, Screen_Play, Screen_Scores
 } GameScreen;
 
 int main(void){
-    InitWindow(1080,720,"Call of the Night Spirit"); //Initialize the window.
-    SetTargetFPS(60); // Set target fps.
+    InitWindow(1080,720,"Call of the Night Spirit");
+    SetTargetFPS(60);
     SetExitKey(KEY_NULL);
     InitAudioDevice();
     GameScreen screen = Screen_Menu;
     Rectangle start_button = {390, 350, 300, 70};
-
-    /*The four numbers are x, y, width, height. Width 300 centres the button, because (1080 - 300) / 2 = 390. The y of 350 puts it below the title.*/
-
     Rectangle exit_button = {390, 450, 300, 70};
     bool quiet = false;
 
-    GameState game;                      // NEW: everything the game remembers
+    GameState game;
 
     Music menu_music = LoadMusicStream("assets/an_untold_legend_v2.wav");
     SetMusicVolume(menu_music, 0.5f);
     PlayMusicStream(menu_music);
 
-
     while(!quiet && !WindowShouldClose()){
         Vector2 mouse = GetMousePosition();
         bool hover = CheckCollisionPointRec(mouse, start_button);
         bool hover_exit = CheckCollisionPointRec(mouse, exit_button);
+
         if(screen == Screen_Menu){
             if(hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 screen = Screen_Play;
                 PauseMusicStream(menu_music);
-                game_init(&game);        // NEW: create the structures, start values
+                game_init(&game);
+                zombies_reset();                 // NEW: reset the zombie timers
             }
             else if(hover_exit && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 quiet = true;
@@ -44,10 +43,17 @@ int main(void){
             if(IsKeyPressed(KEY_ESCAPE)){
                 screen = Screen_Menu;
                 ResumeMusicStream(menu_music);
-                game_free(&game);        // NEW: free what game_init made
+                game_free(&game);
             }
             else{
-                player_update(&game);    // NEW: move the player
+                player_update(&game);
+                zombies_update(&game);           // NEW: spawn, chase, remove the dead
+
+                /* TEMP test key: press K to kill the first zombie.
+                   Remove this once Member C's shooting is merged. */
+                if(IsKeyPressed(KEY_K) && game.zombies->head != NULL){
+                    ((Zombie *)game.zombies->head->data)->hp = 0;
+                }
             }
         }
 
@@ -57,7 +63,7 @@ int main(void){
         if(screen == Screen_Menu){
             int w = MeasureText("Call of the Night Spirit", 60);
             int x = (1080 - w) / 2;
-            DrawText("Call of the Night Spirit",x,150,60,RED); //DrawText(char text, int posX, int posY, int fontSize, Color color);
+            DrawText("Call of the Night Spirit",x,150,60,RED);
 
             int ww = MeasureText("Start",30);
             int xx = start_button.x+(start_button.width - ww)/2;
@@ -74,14 +80,20 @@ int main(void){
             DrawText("Exit", xe, ye, 30, WHITE);
         }
         else if(screen == Screen_Play){
-            player_draw(&game);          // NEW: draw the player
-            DrawText("Press ESC to go back", 20, 20, 20, GRAY);
+            zombies_draw(&game);                 // NEW: draw zombies under the player
+            player_draw(&game);
+
+            /* TEMP info line, Member D's HUD replaces this later */
+            DrawText(TextFormat("HP: %d    Kills: %d    Zombies: %d",
+                     game.player_hp, game.kills, (int)list_size(game.zombies)),
+                     20, 20, 24, WHITE);
+            DrawText("ESC: menu   K: kill first zombie (test)", 20, 50, 18, GRAY);
         }
         EndDrawing();
     }
 
     if(screen == Screen_Play){
-        game_free(&game);                // NEW: quit while in the game
+        game_free(&game);
     }
 
     UnloadMusicStream(menu_music);
