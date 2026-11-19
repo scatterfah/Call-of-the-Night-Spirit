@@ -78,6 +78,10 @@ GAME_BIN = game$(EXE)
 TEST_SRC  = $(wildcard tests/test_*.c)
 TEST_BINS = $(patsubst %.c,%$(EXE),$(TEST_SRC))
 
+# Tests that need another structure's code besides their own.
+# Format:  EXTRA_<name> = src/ds_<other>.c
+EXTRA_pool = src/ds_stack.c
+
 .PHONY: all run test clean info
 
 # Default target
@@ -96,7 +100,7 @@ test: $(TEST_BINS)
 	@echo "ALL TESTS PASSED"
 
 tests/test_%$(EXE): tests/test_%.c src/ds_%.c $(HEADERS)
-	$(CC) $(CFLAGS) -o $@ tests/test_$*.c src/ds_$*.c
+	$(CC) $(CFLAGS) -o $@ tests/test_$*.c src/ds_$*.c $(EXTRA_$*)
 
 # ---------- Data structure modules ----------
 src/%.o: src/%.c $(HEADERS)

@@ -79,3 +79,25 @@ void list_destroy(List *list) {
     }
     free(list);
 }
+/* Removes one node. Returns its data pointer so the caller can free it. */
+void *list_remove(List *list, ListNode *node) {
+    if (list == NULL || node == NULL) return NULL;
+
+    void *data = node->data;
+
+    if (node->prev == NULL) {
+        list->head = node->next;        /* removing the first: head moves on */
+    } else {
+        node->prev->next = node->next;  /* neighbour before skips over it */
+    }
+
+    if (node->next == NULL) {
+        list->tail = node->prev;        /* removing the last: tail moves back */
+    } else {
+        node->next->prev = node->prev;  /* neighbour after skips back over it */
+    }
+
+    free(node);
+    list->size--;
+    return data;
+}
