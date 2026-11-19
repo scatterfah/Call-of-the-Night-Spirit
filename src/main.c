@@ -3,6 +3,7 @@
 #include "player.h"
 #include "zombie.h"
 #include "combat.h"
+#include "world.h"
 
 typedef enum{
     Screen_Menu, Screen_Play, Screen_Scores, Screen_GameOver
@@ -97,14 +98,13 @@ int main(void){
             DrawText("Exit", xe, ye, 30, WHITE);
         }
         else if(screen == Screen_Play){
+            world_draw();                        // NEW: the map goes first, underneath everything
             zombies_draw(&game);
             combat_draw(&game);
             player_draw(&game);
+            hud_draw(&game);                     // NEW: replaces the temporary text lines
 
-            DrawText(TextFormat("HP: %d    Kills: %d    Zombies: %d",
-                     game.player_hp, game.kills, (int)list_size(game.zombies)),
-                     20, 20, 24, WHITE);
-            DrawText("WASD: move   Hold left mouse: shoot   ESC: menu", 20, 50, 18, GRAY);
+            DrawText("WASD: move   Hold left mouse: shoot   ESC: menu", 20, 695, 18, LIGHTGRAY);
         }
         else if(screen == Screen_GameOver){      // NEW
             int gw = MeasureText("GAME OVER", 80);

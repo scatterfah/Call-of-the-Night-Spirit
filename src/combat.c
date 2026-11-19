@@ -2,6 +2,7 @@
 #include "raylib.h"
 #include "combat.h"
 #include "zombie.h"
+#include "world.h"
 
 #define BULLET_SPEED     700.0f   /* pixels per second */
 #define BULLET_RADIUS    4.0f
@@ -65,7 +66,11 @@ void combat_update(GameState *g) {
             pool_release(g->bullets, b);
             continue;
         }
-
+        /* hit a wall: the bullet is used up */
+        if (world_is_wall(b->x, b->y)) {
+            pool_release(g->bullets, b);
+            continue;
+        }
         /* did it hit a zombie? */
         for (ListNode *n = g->zombies->head; n != NULL; n = n->next) {
             Zombie *z = n->data;
