@@ -5,7 +5,7 @@
 #include "combat.h"
 
 typedef enum{
-    Screen_Menu, Screen_Play, Screen_Scores
+    Screen_Menu, Screen_Play, Screen_Scores, Screen_GameOver
 } GameScreen;
 
 int main(void){
@@ -19,6 +19,7 @@ int main(void){
     bool quiet = false;
 
     GameState game;
+    int final_kills = 0;                         // NEW: kills of the game that just ended
 
     Music menu_music = LoadMusicStream("assets/an_untold_legend_v2.wav");
     SetMusicVolume(menu_music, 0.5f);
@@ -35,7 +36,7 @@ int main(void){
                 PauseMusicStream(menu_music);
                 game_init(&game);
                 zombies_reset();
-                combat_reset();                  // NEW: reset the fire cooldown
+                combat_reset();
             }
             else if(hover_exit && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 quiet = true;
@@ -49,9 +50,27 @@ int main(void){
             }
             else{
                 player_update(&game);
-                combat_fire(&game);              // NEW: shoot while the mouse is held
-                combat_update(&game);            // NEW: move bullets, hit zombies
-                zombies_update(&game);           // removes the dead and counts kills
+                combat_fire(&game);
+                combat_update(&game);
+                zombies_update(&game);
+
+                if(game.player_hp <= 0){         // NEW: the player died
+                    final_kills = game.kills;    // remember the score before freeing
+                    game_free(&game);
+                    screen = Screen_GameOver;
+                }
+            }
+        }
+        else if(screen == Screen_GameOver){      // NEW
+            if(IsKeyPressed(KEY_ENTER)){         // play again
+                screen = Screen_Play;
+                game_init(&game);
+                zombies_reset();
+                combat_reset();
+            }
+            else if(IsKeyPressed(KEY_ESCAPE)){   // back to the menu
+                screen = Screen_Menu;
+                ResumeMusicStream(menu_music);
             }
         }
 
@@ -79,13 +98,26 @@ int main(void){
         }
         else if(screen == Screen_Play){
             zombies_draw(&game);
-            combat_draw(&game);                  // NEW: bullets above zombies
+            combat_draw(&game);
             player_draw(&game);
 
             DrawText(TextFormat("HP: %d    Kills: %d    Zombies: %d",
                      game.player_hp, game.kills, (int)list_size(game.zombies)),
                      20, 20, 24, WHITE);
             DrawText("WASD: move   Hold left mouse: shoot   ESC: menu", 20, 50, 18, GRAY);
+        }
+        else if(screen == Screen_GameOver){      // NEW
+            int gw = MeasureText("GAME OVER", 80);
+            DrawText("GAME OVER", (1080 - gw) / 2, 220, 80, RED);
+
+            const char *score = TextFormat("Zombies killed: %d", final_kills);
+            int sw = MeasureText(score, 36);
+            DrawText(score, (1080 - sw) / 2, 340, 36, WHITE);
+
+            int pw = MeasureText("ENTER: play again", 26);
+            DrawText("ENTER: play again", (1080 - pw) / 2, 440, 26, LIGHTGRAY);
+            int mw = MeasureText("ESC: main menu", 26);
+            DrawText("ESC: main menu", (1080 - mw) / 2, 480, 26, LIGHTGRAY);
         }
         EndDrawing();
     }
