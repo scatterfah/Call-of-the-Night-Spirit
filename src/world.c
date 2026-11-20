@@ -1,6 +1,7 @@
 #include "raylib.h"
 #include "world.h"
 #include "zombie.h"
+#include "weapon.h"
 
 #define ROWS   18
 #define COLS   27
@@ -100,4 +101,5 @@ void hud_draw(const GameState *g) {
         DrawText(title, (screen_w - MeasureText(title, 70)) / 2, 230, 70, YELLOW);
         DrawText(sub,   (screen_w - MeasureText(sub, 30)) / 2,   310, 30, LIGHTGRAY);
     }
+    weapon_hud_draw(g);                 /* current weapon and ammo, bottom right */
 }

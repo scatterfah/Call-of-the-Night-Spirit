@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "raylib.h"
 #include "zombie.h"
+#include "pickup.h"
 
 #define PLAYER_RADIUS  20.0f
 #define TOUCH_COOLDOWN 1.0f      /* seconds between hits on the player */
@@ -137,6 +138,7 @@ void zombies_update(GameState *g) {
 
         if (z->hp <= 0) {
             g->kills++;
+            pickup_drop(g, z->x, z->y);     /* maybe leave an item behind */
             list_remove(g->zombies, node);
             free(z);                        /* the list never frees the zombie itself */
         } else {

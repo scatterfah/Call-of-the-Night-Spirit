@@ -3,14 +3,12 @@
 #include "combat.h"
 #include "zombie.h"
 #include "world.h"
+#include "weapon.h"
 
-#define BULLET_SPEED     700.0f   /* pixels per second */
 #define BULLET_RADIUS    4.0f
-#define BULLET_DAMAGE    10       /* a zombie has 50 hp, so 5 hits */
-#define FIRE_INTERVAL    0.20f    /* seconds between shots */
-#define GUN_DISTANCE     25.0f    /* bullet starts this far from the player's centre */
+#define GUN_DISTANCE     25.0f    /* bullets start this far from the player's centre */
 #define OFFSCREEN_MARGIN 50.0f
-
+#define DEG_TO_RAD       0.0174532925f
 
 static float fire_cooldown = 0.0f;
 
@@ -22,25 +20,45 @@ void combat_fire(GameState *g) {
     if (fire_cooldown > 0.0f) return;
     if (!IsMouseButtonDown(MOUSE_LEFT_BUTTON)) return;
 
+    /* the weapon in hand is the top of the stack */
+    const Weapon *weapon = weapon_current(g);
+    if (weapon == NULL) return;
+    const WeaponStats *stats = weapon_stats(weapon->type);
+
     /* direction from the player to the mouse */
     Vector2 mouse = GetMousePosition();
     float dx = mouse.x - g->player_x;
     float dy = mouse.y - g->player_y;
-    float len = sqrtf(dx * dx + dy * dy);
-    if (len < 1.0f) return;          /* mouse is on the player: no direction */
-    dx /= len;
-    dy /= len;
+    if (sqrtf(dx * dx + dy * dy) < 1.0f) return;     /* mouse is on the player: no direction */
+    float aim = atan2f(dy, dx);
 
-    Bullet *b = pool_acquire(g->bullets);
-    if (b == NULL) return;           /* the pool is full: no shot */
+    int fired = 0;
+    for (int i = 0; i < stats->pellets; i++) {
+        float offset = 0.0f;                         /* angle change in degrees */
+        if (stats->pellets > 1) {
+            /* several pellets: spread them evenly across the fan */
+            offset = ((float)i / (float)(stats->pellets - 1) - 0.5f) * stats->spread;
+        } else if (stats->spread > 0.0f) {
+            /* one bullet: a small random wobble */
+            offset = ((float)GetRandomValue(-100, 100) / 100.0f) * stats->spread * 0.5f;
+        }
+        float angle = aim + offset * DEG_TO_RAD;
 
-    b->x = g->player_x + dx * GUN_DISTANCE;
-    b->y = g->player_y + dy * GUN_DISTANCE;
-    b->vx = dx * BULLET_SPEED;
-    b->vy = dy * BULLET_SPEED;
-    b->damage = BULLET_DAMAGE;
+        Bullet *b = pool_acquire(g->bullets);
+        if (b == NULL) break;                        /* the pool is full: no more bullets */
 
-    fire_cooldown = FIRE_INTERVAL;
+        b->x = g->player_x + cosf(angle) * GUN_DISTANCE;
+        b->y = g->player_y + sinf(angle) * GUN_DISTANCE;
+        b->vx = cosf(angle) * stats->speed;
+        b->vy = sinf(angle) * stats->speed;
+        b->damage = stats->damage;
+        fired++;
+    }
+
+    if (fired > 0) {
+        fire_cooldown = stats->interval;
+        weapon_use_ammo(g);        /* may pop the weapon, so it must be the LAST use of it */
+    }
 }
 
 void combat_update(GameState *g) {
@@ -51,7 +69,7 @@ void combat_update(GameState *g) {
     if (fire_cooldown > 0.0f) fire_cooldown -= dt;
 
     /* visit every slot of the pool, and work only on the active ones */
-    for(size_t i = 0; i < pool_capacity(g->bullets); i++){
+    for (size_t i = 0; i < pool_capacity(g->bullets); i++) {
         Bullet *b = pool_get(g->bullets, i);
         if (b == NULL) continue;          /* slot i is free */
 
@@ -64,11 +82,13 @@ void combat_update(GameState *g) {
             pool_release(g->bullets, b);
             continue;
         }
+
         /* hit a wall: the bullet is used up */
         if (world_is_wall(b->x, b->y)) {
             pool_release(g->bullets, b);
             continue;
         }
+
         /* did it hit a zombie? */
         for (ListNode *n = g->zombies->head; n != NULL; n = n->next) {
             Zombie *z = n->data;
@@ -85,7 +105,7 @@ void combat_update(GameState *g) {
 }
 
 void combat_draw(const GameState *g) {
-    for (size_t i = 0; i < g->bullets->capacity; i++) {
+    for (size_t i = 0; i < pool_capacity(g->bullets); i++) {
         const Bullet *b = pool_get(g->bullets, i);
         if (b == NULL) continue;          /* slot i is free */
 

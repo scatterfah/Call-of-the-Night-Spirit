@@ -4,6 +4,7 @@
 #include "zombie.h"
 #include "combat.h"
 #include "world.h"
+#include "pickup.h"
 
 typedef enum{
     Screen_Menu, Screen_Play, Screen_Scores, Screen_GameOver
@@ -20,7 +21,7 @@ int main(void){
     bool quiet = false;
 
     GameState game;
-    int final_kills = 0;                         // NEW: kills of the game that just ended
+    int final_kills = 0;                         // kills of the game that just ended
 
     Music menu_music = LoadMusicStream("assets/an_untold_legend_v2.wav");
     SetMusicVolume(menu_music, 0.5f);
@@ -54,15 +55,16 @@ int main(void){
                 combat_fire(&game);
                 combat_update(&game);
                 zombies_update(&game);
+                pickups_update(&game);           // NEW: items on the ground
 
-                if(game.player_hp <= 0){         // NEW: the player died
+                if(game.player_hp <= 0){
                     final_kills = game.kills;    // remember the score before freeing
                     game_free(&game);
                     screen = Screen_GameOver;
                 }
             }
         }
-        else if(screen == Screen_GameOver){      // NEW
+        else if(screen == Screen_GameOver){
             if(IsKeyPressed(KEY_ENTER)){         // play again
                 screen = Screen_Play;
                 game_init(&game);
@@ -98,15 +100,16 @@ int main(void){
             DrawText("Exit", xe, ye, 30, WHITE);
         }
         else if(screen == Screen_Play){
-            world_draw();                        // NEW: the map goes first, underneath everything
+            world_draw();
+            pickups_draw(&game);                 // NEW: items under the zombies
             zombies_draw(&game);
             combat_draw(&game);
             player_draw(&game);
-            hud_draw(&game);                     // NEW: replaces the temporary text lines
+            hud_draw(&game);
 
             DrawText("WASD: move   Hold left mouse: shoot   ESC: menu", 20, 695, 18, LIGHTGRAY);
         }
-        else if(screen == Screen_GameOver){      // NEW
+        else if(screen == Screen_GameOver){
             int gw = MeasureText("GAME OVER", 80);
             DrawText("GAME OVER", (1080 - gw) / 2, 220, 80, RED);
 
