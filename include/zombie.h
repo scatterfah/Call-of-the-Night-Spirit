@@ -1,30 +1,42 @@
 #ifndef ZOMBIE_H
 #define ZOMBIE_H
 
+#include <stdbool.h>
 #include "game.h"
 
 typedef enum {
-    ZOMBIE_WALKER,     /* normal: balanced */
-    ZOMBIE_RUNNER,     /* fast but weak */
-    ZOMBIE_TANK        /* slow but very tough and hits hard */
+    ZOMBIE_WALKER,
+    ZOMBIE_RUNNER,
+    ZOMBIE_TANK,
+    ZOMBIE_BOSS
 } ZombieType;
 
 typedef struct {
-    float x, y;
-    int   hp, max_hp;
-    float speed;       /* pixels per second */
-    float radius;      /* used for drawing and for bullet hits */
-    int   damage;      /* taken from the player on touch */
+    float      x;
+    float      y;
     ZombieType type;
+    int        hp;
+    int        max_hp;
+    float      speed;
+    float      radius;
+    int        damage;
 } Zombie;
 
+void zombies_reset(void);
 void zombie_spawn(GameState *g, ZombieType type, float x, float y);
-void zombies_update(GameState *g);     /* waves, chase, damage, remove the dead */
+void zombies_update(GameState *g);
 void zombies_draw(const GameState *g);
-void zombies_reset(void);              /* call when a new game starts */
 
-void waves_clear(GameState *g);        /* free what is still waiting in the wave queue */
-int  waves_number(void);               /* current wave, 0 before the first one */
-int  waves_countdown(void);            /* seconds until the next wave, 0 while a wave runs */
+int  waves_number(void);
+int  waves_countdown(void);
+void waves_clear(GameState *g);
+
+/* Final Boss (The Night Spirit) status for HUD and victory trigger */
+bool  boss_is_active(void);
+bool  boss_is_defeated(void);
+int   boss_hp(void);
+int   boss_max_hp(void);
+int   boss_kills_needed(void);
+float boss_intro_timer(void);
 
 #endif
