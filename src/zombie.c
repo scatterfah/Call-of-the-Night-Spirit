@@ -3,11 +3,14 @@
 #include "raylib.h"
 #include "zombie.h"
 #include "pickup.h"
+#include "world.h"
 
-#define PLAYER_RADIUS  20.0f
-#define TOUCH_COOLDOWN 1.0f      /* seconds between hits on the player */
-#define FIRST_BREAK    3.0f      /* quiet time before wave 1 */
-#define BREAK_TIME     4.0f      /* quiet time between waves */
+#define PLAYER_RADIUS    20.0f
+#define TOUCH_COOLDOWN   1.0f      /* seconds between hits on the player */
+#define FIRST_BREAK      3.0f      /* quiet time before wave 1 */
+#define BREAK_TIME       4.0f      /* quiet time between waves */
+#define ZONE_STRIDE_COLS 21
+#define GATE_CENTER_Y    (12.0f * (float)TILE_SIZE)
 
 typedef struct {
     int   hp;
@@ -60,20 +63,56 @@ void zombie_spawn(GameState *g, ZombieType type, float x, float y) {
     }
 }
 
-/* Spawn just outside a random edge of the window */
-static void spawn_at_edge(GameState *g, ZombieType type) {
-    int w = GetScreenWidth();
-    int h = GetScreenHeight();
+/* Spawn on an open floor tile inside the unlocked area, safely away from the player */
+static void spawn_near_player(GameState *g, ZombieType type) {
     float r = STATS[type].radius;
-    float x, y;
+    float pad = (float)TILE_SIZE + r + 2.0f;
 
-    switch (GetRandomValue(0, 3)) {
-        case 0:  x = (float)GetRandomValue(0, w); y = -r;     break;   /* top */
-        case 1:  x = (float)GetRandomValue(0, w); y = h + r;  break;   /* bottom */
-        case 2:  x = -r;    y = (float)GetRandomValue(0, h);  break;   /* left */
-        default: x = w + r; y = (float)GetRandomValue(0, h);  break;   /* right */
+    float min_x = pad;
+    float max_x = world_unlocked_max_x() - r - 2.0f;
+    float min_y = pad;
+    float max_y = world_height() - pad;
+
+    /* prefer spawning near the active camera view */
+    float view_min_x = g->camera_x - 620.0f;
+    float view_max_x = g->camera_x + 620.0f;
+    if (view_min_x < min_x) view_min_x = min_x;
+    if (view_max_x > max_x) view_max_x = max_x;
+
+    for (int attempt = 0; attempt < 40; attempt++) {
+        float x = (float)GetRandomValue((int)view_min_x, (int)view_max_x);
+        float y = (float)GetRandomValue((int)min_y, (int)max_y);
+
+        float dx = x - g->player_x;
+        float dy = y - g->player_y;
+        if (dx * dx + dy * dy < 300.0f * 300.0f) continue;
+
+        if (!world_circle_blocked(x, y, r)) {
+            zombie_spawn(g, type, x, y);
+            return;
+        }
     }
-    zombie_spawn(g, type, x, y);
+
+    /* fallback: anywhere valid in the player's current zone */
+    int zone = world_zone_at(g->player_x);
+    float z_min_x = (float)((zone - 1) * ZONE_STRIDE_COLS + 1) * (float)TILE_SIZE + r + 2.0f;
+    float z_max_x = (float)(zone * ZONE_STRIDE_COLS) * (float)TILE_SIZE - r - 2.0f;
+
+    for (int attempt = 0; attempt < 40; attempt++) {
+        float x = (float)GetRandomValue((int)z_min_x, (int)z_max_x);
+        float y = (float)GetRandomValue((int)min_y, (int)max_y);
+
+        float dx = x - g->player_x;
+        float dy = y - g->player_y;
+        if (dx * dx + dy * dy < 160.0f * 160.0f) continue;
+
+        if (!world_circle_blocked(x, y, r)) {
+            zombie_spawn(g, type, x, y);
+            return;
+        }
+    }
+
+    zombie_spawn(g, type, (z_min_x + z_max_x) * 0.5f, GATE_CENTER_Y);
 }
 
 /* Fill the wave queue. The queue keeps the ORDER the zombies will appear in. */
@@ -123,12 +162,14 @@ void zombies_update(GameState *g) {
         if (!queue_empty(g->wave_queue) && spawn_timer >= interval) {
             spawn_timer = 0.0f;
             ZombieType *next_type = queue_dequeue(g->wave_queue);   /* first in line */
-            spawn_at_edge(g, *next_type);
+            spawn_near_player(g, *next_type);
             free(next_type);
         }
     }
 
     if (hurt_timer > 0.0f) hurt_timer -= dt;
+
+    int player_zone = world_zone_at(g->player_x);
 
     /* 2. Walk the list: remove the dead, move and fight with the living */
     ListNode *node = g->zombies->head;
@@ -142,16 +183,41 @@ void zombies_update(GameState *g) {
             list_remove(g->zombies, node);
             free(z);                        /* the list never frees the zombie itself */
         } else {
-            float dx = g->player_x - z->x;
-            float dy = g->player_y - z->y;
-            float dist = sqrtf(dx * dx + dy * dy);
+            /* Steer through the open gate doorway when chasing across zones */
+            float target_x = g->player_x;
+            float target_y = g->player_y;
+            int zombie_zone = world_zone_at(z->x);
 
-            if (dist > 0.0f) {              /* chase the player */
-                z->x += dx / dist * z->speed * dt;
-                z->y += dy / dist * z->speed * dt;
+            if (zombie_zone < player_zone) {
+                target_x = (float)(zombie_zone * ZONE_STRIDE_COLS + 1) * (float)TILE_SIZE + 20.0f;
+                target_y = GATE_CENTER_Y;
+            } else if (zombie_zone > player_zone) {
+                target_x = (float)((zombie_zone - 1) * ZONE_STRIDE_COLS - 1) * (float)TILE_SIZE + 20.0f;
+                target_y = GATE_CENTER_Y;
             }
 
-            if (dist < z->radius + PLAYER_RADIUS && hurt_timer <= 0.0f) {
+            float dx = target_x - z->x;
+            float dy = target_y - z->y;
+            float dist = sqrtf(dx * dx + dy * dy);
+
+            if (dist > 0.0f) {
+                float step = z->speed * dt;
+                float new_x = z->x + (dx / dist) * step;
+                if (!world_circle_blocked(new_x, z->y, z->radius)) {
+                    z->x = new_x;
+                }
+
+                float new_y = z->y + (dy / dist) * step;
+                if (!world_circle_blocked(z->x, new_y, z->radius)) {
+                    z->y = new_y;
+                }
+            }
+
+            float pdx = g->player_x - z->x;
+            float pdy = g->player_y - z->y;
+            float pdist = sqrtf(pdx * pdx + pdy * pdy);
+
+            if (pdist < z->radius + PLAYER_RADIUS && hurt_timer <= 0.0f) {
                 g->player_hp -= z->damage;
                 if (g->player_hp < 0) g->player_hp = 0;
                 hurt_timer = TOUCH_COOLDOWN;

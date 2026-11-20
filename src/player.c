@@ -47,7 +47,7 @@ void player_draw(const GameState *g) {
         angle = atan2f(target->y - g->player_y, target->x - g->player_x);
         aim_color = RED;
     } else {
-        Vector2 mouse = GetMousePosition();
+        Vector2 mouse = world_mouse_pos(g);
         angle = atan2f(mouse.y - g->player_y, mouse.x - g->player_x);
     }
 

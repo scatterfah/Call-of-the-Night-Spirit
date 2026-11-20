@@ -91,11 +91,17 @@ static void detonate_bomb(GameState *g, Bomb *bomb) {
         if (dmg < 1) dmg = 1;
         z->hp -= dmg;
 
-        /* push surviving zombies away from the blast */
+        /* push surviving zombies away without shoving them into walls or closed gates */
         if (z->hp > 0 && dist > 0.001f) {
             float push = BOMB_KNOCKBACK * (0.3f + 0.7f * falloff);
-            z->x += (dx / dist) * push;
-            z->y += (dy / dist) * push;
+            float new_x = z->x + (dx / dist) * push;
+            if (!world_circle_blocked(new_x, z->y, z->radius)) {
+                z->x = new_x;
+            }
+            float new_y = z->y + (dy / dist) * push;
+            if (!world_circle_blocked(z->x, new_y, z->radius)) {
+                z->y = new_y;
+            }
         }
     }
 
@@ -155,7 +161,7 @@ void combat_fire(GameState *g) {
             aim = atan2f(dy, dx);
         }
     } else {
-        Vector2 mouse = GetMousePosition();
+        Vector2 mouse = world_mouse_pos(g);
         float dx = mouse.x - g->player_x;
         float dy = mouse.y - g->player_y;
         if (sqrtf(dx * dx + dy * dy) < 1.0f) return; /* mouse is on the player: no direction */
@@ -199,7 +205,7 @@ void combat_throw_bomb(GameState *g) {
     Bomb *b = pool_acquire(g->bombs);
     if (b == NULL) return;
 
-    Vector2 mouse = GetMousePosition();
+    Vector2 mouse = world_mouse_pos(g);
     float dx = mouse.x - g->player_x;
     float dy = mouse.y - g->player_y;
     float dist = sqrtf(dx * dx + dy * dy);
@@ -229,8 +235,8 @@ void combat_throw_bomb(GameState *g) {
 
 void combat_update(GameState *g) {
     float dt = GetFrameTime();
-    float w = (float)GetScreenWidth();
-    float h = (float)GetScreenHeight();
+    float w = world_width();
+    float h = world_height();
 
     if (fire_cooldown > 0.0f) fire_cooldown -= dt;
     if (bomb_cooldown > 0.0f) bomb_cooldown -= dt;
@@ -243,14 +249,14 @@ void combat_update(GameState *g) {
         b->x += b->vx * dt;
         b->y += b->vy * dt;
 
-        /* left the screen: give the slot back */
+        /* left the world: give the slot back */
         if (b->x < -OFFSCREEN_MARGIN || b->x > w + OFFSCREEN_MARGIN ||
             b->y < -OFFSCREEN_MARGIN || b->y > h + OFFSCREEN_MARGIN) {
             pool_release(g->bullets, b);
             continue;
         }
 
-        /* hit a wall: the bullet is used up */
+        /* hit a wall or closed gate: the bullet is used up */
         if (world_is_wall(b->x, b->y)) {
             pool_release(g->bullets, b);
             continue;
@@ -277,7 +283,7 @@ void combat_update(GameState *g) {
         if (b == NULL) continue;
 
         if (b->state == BOMB_ARMED) {
-            /* move one axis at a time and bounce softly off walls */
+            /* move one axis at a time and bounce softly off walls and closed gates */
             float next_x = b->x + b->vx * dt;
             if (world_circle_blocked(next_x, b->y, BOMB_RADIUS)) {
                 b->vx = -b->vx * 0.5f;
