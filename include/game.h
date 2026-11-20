@@ -10,7 +10,8 @@ typedef struct {
     List  *zombies;        /* zombies alive now */
     Queue *wave_queue;     /* zombies waiting to spawn */
     Pool  *bullets;        /* bullet slots */
-    Stack *weapons;        /* weapon and bomb inventory */
+    Stack *weapons;        /* weapon inventory: the top is the weapon in hand */
+    List  *pickups;        /* items lying on the ground */
 
     int   kills;           /* zombies killed so far */
     int   kill_quota;      /* kills needed to open the next gate */

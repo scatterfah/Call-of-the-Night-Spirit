@@ -2,12 +2,17 @@
 #include "game.h"
 #include "combat.h"
 #include "zombie.h"
+#include "weapon.h"
+#include "pickup.h"
 
 void game_init(GameState *g) {
     g->zombies    = list_create();
     g->wave_queue = queue_create();
     g->weapons    = stack_create();
     g->bullets    = pool_create(sizeof(Bullet), 100);   /* up to 100 bullets at once */
+    g->pickups    = list_create();
+
+    weapons_init(g);                /* the pistol starts at the bottom of the stack */
 
     g->kills      = 0;
     g->kill_quota = 10;
@@ -24,9 +29,12 @@ void game_free(GameState *g) {
     }
 
     waves_clear(g);                 /* free the zombies still waiting in the queue */
+    weapons_clear(g);               /* free every weapon on the stack */
+    pickups_clear(g);               /* free every pickup on the ground */
 
     list_destroy(g->zombies);
     queue_destroy(g->wave_queue);
     stack_destroy(g->weapons);
     pool_destroy(g->bullets);
+    list_destroy(g->pickups);
 }
