@@ -24,10 +24,50 @@
 
 static float fire_cooldown = 0.0f;
 static float bomb_cooldown = 0.0f;
+static float ref_player_x  = 0.0f;
+static float ref_player_y  = 0.0f;
 
 void combat_reset(void) {
     fire_cooldown = 0.3f;    /* so the click that pressed START does not fire a shot */
     bomb_cooldown = 0.2f;
+}
+
+/* Min-heap comparator: zombies closer to the player bubble to the top */
+int combat_compare_target(const void *a, const void *b) {
+    const Zombie *za = a;
+    const Zombie *zb = b;
+
+    float dxa = za->x - ref_player_x;
+    float dya = za->y - ref_player_y;
+    float dxb = zb->x - ref_player_x;
+    float dyb = zb->y - ref_player_y;
+
+    float dist_a = dxa * dxa + dya * dya;
+    float dist_b = dxb * dxb + dyb * dyb;
+
+    if (dist_a < dist_b) return -1;
+    if (dist_a > dist_b) return 1;
+    return 0;
+}
+
+void combat_update_targets(GameState *g) {
+    if (g->target_heap == NULL) return;
+
+    heap_clear(g->target_heap);
+    ref_player_x = g->player_x;
+    ref_player_y = g->player_y;
+
+    for (ListNode *n = g->zombies->head; n != NULL; n = n->next) {
+        Zombie *z = n->data;
+        if (z->hp > 0) {
+            heap_push(g->target_heap, z);
+        }
+    }
+}
+
+const Zombie *combat_closest_target(const GameState *g) {
+    if (g->target_heap == NULL) return NULL;
+    return heap_peek(g->target_heap);
 }
 
 static void detonate_bomb(GameState *g, Bomb *bomb) {
@@ -93,6 +133,10 @@ static void detonate_bomb(GameState *g, Bomb *bomb) {
 }
 
 void combat_fire(GameState *g) {
+    if (IsKeyPressed(KEY_Q)) {
+        g->auto_aim = !g->auto_aim;
+    }
+
     if (fire_cooldown > 0.0f) return;
     if (!IsMouseButtonDown(MOUSE_LEFT_BUTTON)) return;
 
@@ -101,12 +145,22 @@ void combat_fire(GameState *g) {
     if (weapon == NULL) return;
     const WeaponStats *stats = weapon_stats(weapon->type);
 
-    /* direction from the player to the mouse */
-    Vector2 mouse = GetMousePosition();
-    float dx = mouse.x - g->player_x;
-    float dy = mouse.y - g->player_y;
-    if (sqrtf(dx * dx + dy * dy) < 1.0f) return;     /* mouse is on the player: no direction */
-    float aim = atan2f(dy, dx);
+    /* aim at the closest zombie when auto-aim is on, otherwise toward the mouse */
+    float aim = 0.0f;
+    const Zombie *target = g->auto_aim ? combat_closest_target(g) : NULL;
+    if (target != NULL && target->hp > 0) {
+        float dx = target->x - g->player_x;
+        float dy = target->y - g->player_y;
+        if (dx * dx + dy * dy >= 1.0f) {
+            aim = atan2f(dy, dx);
+        }
+    } else {
+        Vector2 mouse = GetMousePosition();
+        float dx = mouse.x - g->player_x;
+        float dy = mouse.y - g->player_y;
+        if (sqrtf(dx * dx + dy * dy) < 1.0f) return; /* mouse is on the player: no direction */
+        aim = atan2f(dy, dx);
+    }
 
     int fired = 0;
     for (int i = 0; i < stats->pellets; i++) {
@@ -259,7 +313,29 @@ void combat_update(GameState *g) {
 }
 
 void combat_draw(const GameState *g) {
-    /* 1. Draw bullets */
+    /* 1. Draw closest-target marker (and lock-on guide line if auto-aim is ON) */
+    const Zombie *target = combat_closest_target(g);
+    if (target != NULL && target->hp > 0) {
+        float pulse = 2.0f * sinf((float)GetTime() * 8.0f);
+        float r = target->radius + 7.0f + pulse;
+        int tx = (int)target->x;
+        int ty = (int)target->y;
+        int tick = 7;
+
+        Color marker = g->auto_aim ? RED : GOLD;
+
+        if (g->auto_aim) {
+            DrawLine((int)g->player_x, (int)g->player_y, tx, ty, (Color){255, 60, 60, 90});
+        }
+
+        DrawCircleLines(tx, ty, r, marker);
+        DrawLine(tx - (int)r - tick, ty, tx - (int)r + 2, ty, marker);
+        DrawLine(tx + (int)r - 2, ty, tx + (int)r + tick, ty, marker);
+        DrawLine(tx, ty - (int)r - tick, tx, ty - (int)r + 2, marker);
+        DrawLine(tx, ty + (int)r - 2, tx, ty + (int)r + tick, marker);
+    }
+
+    /* 2. Draw bullets */
     for (size_t i = 0; i < pool_capacity(g->bullets); i++) {
         const Bullet *b = pool_get(g->bullets, i);
         if (b == NULL) continue;          /* slot i is free */
@@ -267,7 +343,7 @@ void combat_draw(const GameState *g) {
         DrawCircle((int)b->x, (int)b->y, BULLET_RADIUS, YELLOW);
     }
 
-    /* 2. Draw bombs and blast waves */
+    /* 3. Draw bombs and blast waves */
     for (size_t i = 0; i < pool_capacity(g->bombs); i++) {
         const Bomb *b = pool_get(g->bombs, i);
         if (b == NULL) continue;

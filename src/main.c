@@ -56,6 +56,7 @@ int main(void){
                 combat_throw_bomb(&game);
                 combat_update(&game);
                 zombies_update(&game);
+                combat_update_targets(&game);    // rebuild target heap after dead zombies are removed
                 pickups_update(&game);           // items on the ground
 
                 if(game.player_hp <= 0){
@@ -108,7 +109,7 @@ int main(void){
             player_draw(&game);
             hud_draw(&game);
 
-            DrawText("WASD: move   LMB: shoot   RMB / G: bomb   ESC: menu", 20, 695, 18, LIGHTGRAY);
+            DrawText("WASD: move  LMB: shoot  RMB/G: bomb  Q: auto-aim  ESC: menu", 20, 695, 18, LIGHTGRAY);
         }
         else if(screen == Screen_GameOver){
             int gw = MeasureText("GAME OVER", 80);
