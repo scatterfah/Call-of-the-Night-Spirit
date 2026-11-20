@@ -10,6 +10,7 @@ typedef struct {
     List  *zombies;        /* zombies alive now */
     Queue *wave_queue;     /* zombies waiting to spawn */
     Pool  *bullets;        /* bullet slots */
+    Pool  *bombs;          /* active bomb slots */
     Stack *weapons;        /* weapon inventory: the top is the weapon in hand */
     List  *pickups;        /* items lying on the ground */
 
@@ -18,6 +19,7 @@ typedef struct {
 
     float player_x, player_y;
     int   player_hp;
+    int   bomb_count;      /* bombs the player is carrying */
 } GameState;
 
 void game_init(GameState *g);    /* create the structures, set starting values */

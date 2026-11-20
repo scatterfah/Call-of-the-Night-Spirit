@@ -53,9 +53,10 @@ int main(void){
             else{
                 player_update(&game);
                 combat_fire(&game);
+                combat_throw_bomb(&game);
                 combat_update(&game);
                 zombies_update(&game);
-                pickups_update(&game);           // NEW: items on the ground
+                pickups_update(&game);           // items on the ground
 
                 if(game.player_hp <= 0){
                     final_kills = game.kills;    // remember the score before freeing
@@ -101,13 +102,13 @@ int main(void){
         }
         else if(screen == Screen_Play){
             world_draw();
-            pickups_draw(&game);                 // NEW: items under the zombies
+            pickups_draw(&game);                 // items under the zombies
             zombies_draw(&game);
             combat_draw(&game);
             player_draw(&game);
             hud_draw(&game);
 
-            DrawText("WASD: move   Hold left mouse: shoot   ESC: menu", 20, 695, 18, LIGHTGRAY);
+            DrawText("WASD: move   LMB: shoot   RMB / G: bomb   ESC: menu", 20, 695, 18, LIGHTGRAY);
         }
         else if(screen == Screen_GameOver){
             int gw = MeasureText("GAME OVER", 80);

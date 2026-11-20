@@ -10,6 +10,7 @@ void game_init(GameState *g) {
     g->wave_queue = queue_create();
     g->weapons    = stack_create();
     g->bullets    = pool_create(sizeof(Bullet), 100);   /* up to 100 bullets at once */
+    g->bombs      = pool_create(sizeof(Bomb), 16);      /* up to 16 active bombs at once */
     g->pickups    = list_create();
 
     weapons_init(g);                /* the pistol starts at the bottom of the stack */
@@ -20,6 +21,7 @@ void game_init(GameState *g) {
     g->player_x   = 540.0f;
     g->player_y   = 360.0f;
     g->player_hp  = 100;
+    g->bomb_count = BOMB_START_AMMO;
 }
 
 void game_free(GameState *g) {
@@ -36,5 +38,6 @@ void game_free(GameState *g) {
     queue_destroy(g->wave_queue);
     stack_destroy(g->weapons);
     pool_destroy(g->bullets);
+    pool_destroy(g->bombs);
     list_destroy(g->pickups);
 }
