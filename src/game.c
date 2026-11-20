@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "game.h"
 #include "combat.h"
+#include "zombie.h"
 
 void game_init(GameState *g) {
     g->zombies    = list_create();
@@ -21,6 +22,8 @@ void game_free(GameState *g) {
     for (ListNode *n = g->zombies->head; n != NULL; n = n->next) {
         free(n->data);
     }
+
+    waves_clear(g);                 /* free the zombies still waiting in the queue */
 
     list_destroy(g->zombies);
     queue_destroy(g->wave_queue);

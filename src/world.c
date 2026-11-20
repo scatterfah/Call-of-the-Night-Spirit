@@ -1,5 +1,6 @@
 #include "raylib.h"
 #include "world.h"
+#include "zombie.h"
 
 #define ROWS   18
 #define COLS   27
@@ -81,11 +82,22 @@ void hud_draw(const GameState *g) {
     DrawRectangleLines(50, 10, 200, 18, WHITE);
     DrawText(TextFormat("%d", g->player_hp), 260, 9, 20, WHITE);
 
-    /* zombies alive, in the middle */
-    const char *alive = TextFormat("Zombies: %d", (int)list_size(g->zombies));
-    DrawText(alive, (screen_w - MeasureText(alive, 20)) / 2, 9, 20, WHITE);
+    /* wave, zombies alive and zombies still to come, in the middle */
+    const char *info = TextFormat("Wave %d    Alive: %d    Incoming: %d",
+                                  waves_number(), (int)list_size(g->zombies),
+                                  (int)queue_size(g->wave_queue));
+    DrawText(info, (screen_w - MeasureText(info, 20)) / 2, 9, 20, WHITE);
 
     /* kills out of the quota, on the right */
     const char *kills = TextFormat("Kills: %d / %d", g->kills, g->kill_quota);
     DrawText(kills, screen_w - MeasureText(kills, 20) - 15, 9, 20, WHITE);
+
+    /* between waves: a big banner with the countdown */
+    int wait = waves_countdown();
+    if (wait > 0) {
+        const char *title = TextFormat("WAVE %d", waves_number() + 1);
+        const char *sub   = TextFormat("starts in %d", wait);
+        DrawText(title, (screen_w - MeasureText(title, 70)) / 2, 230, 70, YELLOW);
+        DrawText(sub,   (screen_w - MeasureText(sub, 30)) / 2,   310, 30, LIGHTGRAY);
+    }
 }
