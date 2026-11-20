@@ -6,7 +6,8 @@
 typedef enum {
     PICKUP_HEALTH,
     PICKUP_SHOTGUN,
-    PICKUP_SMG
+    PICKUP_SMG,
+    PICKUP_BOMB
 } PickupType;
 
 typedef struct {

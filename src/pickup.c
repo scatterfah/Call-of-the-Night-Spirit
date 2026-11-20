@@ -2,6 +2,7 @@
 #include "raylib.h"
 #include "pickup.h"
 #include "weapon.h"
+#include "combat.h"
 
 #define PICKUP_RADIUS  12.0f
 #define PLAYER_RADIUS  20.0f
@@ -17,9 +18,10 @@ void pickup_drop(GameState *g, float x, float y) {
     if (p == NULL) return;
 
     int roll = GetRandomValue(0, 99);
-    if (roll < 45)      p->type = PICKUP_HEALTH;           /* 45% health */
-    else if (roll < 75) p->type = PICKUP_SHOTGUN;          /* 30% shotgun */
-    else                p->type = PICKUP_SMG;              /* 25% SMG */
+    if (roll < 35)      p->type = PICKUP_HEALTH;           /* 35% health */
+    else if (roll < 60) p->type = PICKUP_SHOTGUN;          /* 25% shotgun */
+    else if (roll < 80) p->type = PICKUP_SMG;              /* 20% SMG */
+    else                p->type = PICKUP_BOMB;             /* 20% bomb */
 
     p->x = x;
     p->y = y;
@@ -56,9 +58,14 @@ void pickups_update(GameState *g) {
             } else if (p->type == PICKUP_SHOTGUN) {
                 weapon_give(g, WEAPON_SHOTGUN);
                 collected = true;
-            } else {
+            } else if (p->type == PICKUP_SMG) {
                 weapon_give(g, WEAPON_SMG);
                 collected = true;
+            } else if (p->type == PICKUP_BOMB) {
+                if (g->bomb_count < BOMB_MAX_AMMO) {       /* do not waste it when full */
+                    g->bomb_count++;
+                    collected = true;
+                }
             }
         }
 
@@ -82,7 +89,8 @@ void pickups_draw(const GameState *g) {
         const char *label;
         if (p->type == PICKUP_HEALTH)       { color = (Color){ 40, 170,  70, 255}; label = "+"; }
         else if (p->type == PICKUP_SHOTGUN) { color = (Color){210, 120,  30, 255}; label = "S"; }
-        else                                { color = (Color){ 60, 130, 220, 255}; label = "M"; }
+        else if (p->type == PICKUP_SMG)     { color = (Color){ 60, 130, 220, 255}; label = "M"; }
+        else                                { color = (Color){200,  45,  45, 255}; label = "B"; }
 
         int x = (int)p->x;
         int y = (int)p->y;

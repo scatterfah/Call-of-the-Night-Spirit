@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include "raylib.h"
 #include "weapon.h"
+#include "combat.h"
 
 /* one row per WeaponType, in the same order as the enum */
 static const WeaponStats STATS[3] = {
@@ -66,6 +67,10 @@ void weapon_use_ammo(GameState *g) {
 }
 
 void weapon_hud_draw(const GameState *g) {
+    const char *bombs = TextFormat("Bombs [RMB / G]: %d / %d", g->bomb_count, BOMB_MAX_AMMO);
+    int bx = GetScreenWidth() - MeasureText(bombs, 20) - 20;
+    DrawText(bombs, bx, 666, 20, g->bomb_count > 0 ? ORANGE : GRAY);
+
     const Weapon *w = weapon_current(g);
     if (w == NULL) return;
 
