@@ -67,6 +67,10 @@ void weapon_use_ammo(GameState *g) {
 }
 
 void weapon_hud_draw(const GameState *g) {
+    const char *aim = g->auto_aim ? "Auto-Aim [Q]: ON" : "Auto-Aim [Q]: OFF";
+    int ax = GetScreenWidth() - MeasureText(aim, 20) - 20;
+    DrawText(aim, ax, 640, 20, g->auto_aim ? GREEN : GRAY);
+
     const char *bombs = TextFormat("Bombs [RMB / G]: %d / %d", g->bomb_count, BOMB_MAX_AMMO);
     int bx = GetScreenWidth() - MeasureText(bombs, 20) - 20;
     DrawText(bombs, bx, 666, 20, g->bomb_count > 0 ? ORANGE : GRAY);

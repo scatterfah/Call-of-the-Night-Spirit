@@ -2,6 +2,7 @@
 #include "raylib.h"
 #include "player.h"
 #include "world.h"
+#include "combat.h"
 
 #define PLAYER_RADIUS 20.0f
 #define PLAYER_SPEED  250.0f      /* pixels per second */
@@ -37,15 +38,24 @@ void player_update(GameState *g) {
 }
 
 void player_draw(const GameState *g) {
-    /* Direction from the player to the mouse */
-    Vector2 mouse = GetMousePosition();
-    float angle = atan2f(mouse.y - g->player_y, mouse.x - g->player_x);
+    /* Aim toward the locked zombie when auto-aim is on, otherwise toward the mouse */
+    const Zombie *target = g->auto_aim ? combat_closest_target(g) : NULL;
+    float angle;
+    Color aim_color = WHITE;
+
+    if (target != NULL && target->hp > 0) {
+        angle = atan2f(target->y - g->player_y, target->x - g->player_x);
+        aim_color = RED;
+    } else {
+        Vector2 mouse = GetMousePosition();
+        angle = atan2f(mouse.y - g->player_y, mouse.x - g->player_x);
+    }
 
     /* Body */
     DrawCircle((int)g->player_x, (int)g->player_y, PLAYER_RADIUS, SKYBLUE);
 
-    /* Aim line: starts at the player, points toward the mouse */
+    /* Aim line: starts at the player, points toward the current target or mouse */
     float tipx = g->player_x + cosf(angle) * (PLAYER_RADIUS + 15.0f);
     float tipy = g->player_y + sinf(angle) * (PLAYER_RADIUS + 15.0f);
-    DrawLine((int)g->player_x, (int)g->player_y, (int)tipx, (int)tipy, WHITE);
+    DrawLine((int)g->player_x, (int)g->player_y, (int)tipx, (int)tipy, aim_color);
 }

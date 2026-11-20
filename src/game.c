@@ -6,12 +6,13 @@
 #include "pickup.h"
 
 void game_init(GameState *g) {
-    g->zombies    = list_create();
-    g->wave_queue = queue_create();
-    g->weapons    = stack_create();
-    g->bullets    = pool_create(sizeof(Bullet), 100);   /* up to 100 bullets at once */
-    g->bombs      = pool_create(sizeof(Bomb), 16);      /* up to 16 active bombs at once */
-    g->pickups    = list_create();
+    g->zombies     = list_create();
+    g->wave_queue  = queue_create();
+    g->weapons     = stack_create();
+    g->bullets     = pool_create(sizeof(Bullet), 100);   /* up to 100 bullets at once */
+    g->bombs       = pool_create(sizeof(Bomb), 16);      /* up to 16 active bombs at once */
+    g->pickups     = list_create();
+    g->target_heap = heap_create(combat_compare_target);
 
     weapons_init(g);                /* the pistol starts at the bottom of the stack */
 
@@ -22,6 +23,7 @@ void game_init(GameState *g) {
     g->player_y   = 360.0f;
     g->player_hp  = 100;
     g->bomb_count = BOMB_START_AMMO;
+    g->auto_aim   = false;
 }
 
 void game_free(GameState *g) {
@@ -40,4 +42,5 @@ void game_free(GameState *g) {
     pool_destroy(g->bullets);
     pool_destroy(g->bombs);
     list_destroy(g->pickups);
+    heap_destroy(g->target_heap);
 }
