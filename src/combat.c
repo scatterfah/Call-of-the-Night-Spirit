@@ -11,8 +11,6 @@
 #define GUN_DISTANCE     25.0f    /* bullet starts this far from the player's centre */
 #define OFFSCREEN_MARGIN 50.0f
 
-/* must match ZOMBIE_RADIUS in zombie.c */
-#define ZOMBIE_HIT_RADIUS 18.0f
 
 static float fire_cooldown = 0.0f;
 
@@ -77,7 +75,7 @@ void combat_update(GameState *g) {
             if (z->hp <= 0) continue;   /* already dead, waiting to be removed */
 
             if (CheckCollisionCircles((Vector2){b->x, b->y}, BULLET_RADIUS,
-                                      (Vector2){z->x, z->y}, ZOMBIE_HIT_RADIUS)) {
+                                      (Vector2){z->x, z->y}, z->radius)) {
                 z->hp -= b->damage;              /* only reduce hp: zombie.c removes the dead */
                 pool_release(g->bullets, b);     /* the bullet is used up */
                 break;
