@@ -18,9 +18,12 @@ void game_init(GameState *g) {
 
     g->kills      = 0;
     g->kill_quota = 10;
+    g->gates_open = 0;
 
-    g->player_x   = 540.0f;
-    g->player_y   = 360.0f;
+    g->player_x   = 420.0f;         /* centre of Zone 1 */
+    g->player_y   = 480.0f;
+    g->camera_x   = 540.0f;         /* clamped starting camera centre */
+    g->camera_y   = 480.0f;
     g->player_hp  = 100;
     g->bomb_count = BOMB_START_AMMO;
     g->auto_aim   = false;

@@ -19,8 +19,10 @@ typedef struct {
 
     int   kills;           /* zombies killed so far */
     int   kill_quota;      /* kills needed to open the next gate */
+    int   gates_open;      /* number of gates opened so far (0..3) */
 
     float player_x, player_y;
+    float camera_x, camera_y;
     int   player_hp;
     int   bomb_count;      /* bombs the player is carrying */
     bool  auto_aim;        /* true: bullets lock onto the closest zombie */

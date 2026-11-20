@@ -37,6 +37,7 @@ int main(void){
                 screen = Screen_Play;
                 PauseMusicStream(menu_music);
                 game_init(&game);
+                world_reset();
                 zombies_reset();
                 combat_reset();
             }
@@ -56,6 +57,7 @@ int main(void){
                 combat_throw_bomb(&game);
                 combat_update(&game);
                 zombies_update(&game);
+                world_update(&game);             // open gates on kill quota and scroll camera
                 combat_update_targets(&game);    // rebuild target heap after dead zombies are removed
                 pickups_update(&game);           // items on the ground
 
@@ -70,6 +72,7 @@ int main(void){
             if(IsKeyPressed(KEY_ENTER)){         // play again
                 screen = Screen_Play;
                 game_init(&game);
+                world_reset();
                 zombies_reset();
                 combat_reset();
             }
@@ -102,13 +105,15 @@ int main(void){
             DrawText("Exit", xe, ye, 30, WHITE);
         }
         else if(screen == Screen_Play){
-            world_draw();
-            pickups_draw(&game);                 // items under the zombies
-            zombies_draw(&game);
-            combat_draw(&game);
-            player_draw(&game);
-            hud_draw(&game);
+            BeginMode2D(world_camera(&game));
+                world_draw();
+                pickups_draw(&game);             // items under the zombies
+                zombies_draw(&game);
+                combat_draw(&game);
+                player_draw(&game);
+            EndMode2D();
 
+            hud_draw(&game);
             DrawText("WASD: move  LMB: shoot  RMB/G: bomb  Q: auto-aim  ESC: menu", 20, 695, 18, LIGHTGRAY);
         }
         else if(screen == Screen_GameOver){
