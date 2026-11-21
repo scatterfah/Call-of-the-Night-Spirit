@@ -4,35 +4,37 @@
 #include "raylib.h"
 
 typedef struct {
-    Texture2D bg_moon;
-    Texture2D bg_mountains;
-    Texture2D bg_graveyard;
-    Texture2D bush_large;
-    Texture2D bush_small;
-    Texture2D statue;
-    Texture2D stones[4];
-    Texture2D trees[3];
+    Texture2D bg;              /* colossal blood-moon cathedral skyline (also menu bg) */
+    Texture2D buildings;       /* wrought-iron fences, mausoleums & lanterns */
+    Texture2D floor;           /* seamless mossy cobblestone courtyard */
+    Texture2D props;           /* 2x2 sheet: gnarled oak, angel statue, gravestones, lamp */
+    Rectangle prop_rects[4];   /* tight bounding box for each of the 4 props */
+    Texture2D fallback_moon;   /* fallback to legacy background.png if bg.png is absent */
+    Texture2D fallback_statue; /* fallback to legacy statue.png if props.png is absent */
 } WorldAssets;
 
 typedef struct {
-    Texture2D bg;
-    Texture2D far_buildings;
-    Texture2D buildings;
-    Texture2D foreground;
+    Texture2D bg;              /* vaulted gothic catacombs cavern */
+    Texture2D buildings;       /* skull-lined crypt walls trimmed flush to floor */
+    Texture2D floor;           /* seamless ancient stone & blood-rune floor */
+    Texture2D props;           /* 2x2 sheet: coffin, brazier, altar, spiked gate */
+    Rectangle prop_rects[4];   /* tight bounding box for each of the 4 props */
 } Zone2Assets;
 
 typedef struct {
-    Texture2D buildings;
-    Texture2D front;
-    Texture2D foreground;
+    Texture2D bg;              /* moonlit ruined city skyline & storm clouds */
+    Texture2D buildings;       /* brick storefronts trimmed flush to sidewalk */
+    Texture2D road;            /* seamless illustrated street & sidewalks */
+    Texture2D props;           /* 2x2 sheet: taxi, police car, dumpster, barricade */
+    Rectangle prop_rects[4];   /* tight bounding box for each of the 4 props */
 } Zone3Assets;
 
 typedef struct {
-    Texture2D sky;
-    Texture2D clouds;
-    Texture2D far_mountains;
-    Texture2D canyon;
-    Texture2D front;
+    Texture2D bg;              /* eclipsed crimson-violet canyon boss sky */
+    Texture2D buildings;       /* obsidian ritual arches, canyon rim & rune monoliths */
+    Texture2D floor;           /* seamless cracked volcanic sandstone & fissure floor */
+    Texture2D props;           /* 2x2 sheet: magma boulder, rune obelisk, beast bones, charred tree */
+    Rectangle prop_rects[4];   /* tight bounding box for each of the 4 props */
 } Zone4Assets;
 
 typedef struct {
