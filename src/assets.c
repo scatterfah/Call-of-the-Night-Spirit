@@ -7,8 +7,8 @@ static Assets g_assets = { 0 };
 
 typedef enum {
     WHITE_KEEP = 0,
-    WHITE_STRIP_FLOOD,    /* border flood-fill (protects white interior details like police doors) */
-    WHITE_STRIP_NEUTRAL   /* strips neutral near-white (clears gaps in iron fences, arches & branches) */
+    WHITE_STRIP_FLOOD,    /* border flood-fill (protects interior details like flames & bandages) */
+    WHITE_STRIP_NEUTRAL   /* strips neutral near-white (clears gaps in iron fences & branches) */
 } WhiteMode;
 
 static const char *find_asset_path(const char *png_path, const char *jpg_path) {
@@ -27,11 +27,12 @@ static bool is_near_white(Color c, int min_v, int max_diff) {
     return (lo >= min_v) && ((hi - lo) <= max_diff);
 }
 
-static void strip_white_flood(Image *img, int min_v, bool seed_center_cross) {
+/* Flood-fills outer white pixels starting from every grid cell boundary (cols x rows) */
+static void strip_white_flood_grid(Image *img, int cols, int rows, int min_v) {
     int w = img->width;
     int h = img->height;
     int total = w * h;
-    if (total <= 0) return;
+    if (total <= 0 || cols <= 0 || rows <= 0) return;
 
     Color *px = (Color *)img->data;
     unsigned char *vis = calloc((size_t)total, 1);
@@ -44,22 +45,22 @@ static void strip_white_flood(Image *img, int min_v, bool seed_center_cross) {
 
     int head = 0;
     int tail = 0;
-    int seed_count = seed_center_cross ? 3 : 2;
 
-    for (int x = 0; x < w; x++) {
-        int seeds[3] = { x, (h - 1) * w + x, (h / 2) * w + x };
-        for (int s = 0; s < seed_count; s++) {
-            int idx = seeds[s];
+    for (int r = 0; r <= rows; r++) {
+        int y = (r == rows) ? (h - 1) : ((r * h) / rows);
+        for (int x = 0; x < w; x++) {
+            int idx = y * w + x;
             if (!vis[idx] && is_near_white(px[idx], min_v, 22)) {
                 vis[idx] = 1;
                 queue[tail++] = idx;
             }
         }
     }
-    for (int y = 0; y < h; y++) {
-        int seeds[3] = { y * w, y * w + (w - 1), y * w + (w / 2) };
-        for (int s = 0; s < seed_count; s++) {
-            int idx = seeds[s];
+
+    for (int c = 0; c <= cols; c++) {
+        int x = (c == cols) ? (w - 1) : ((c * w) / cols);
+        for (int y = 0; y < h; y++) {
+            int idx = y * w + x;
             if (!vis[idx] && is_near_white(px[idx], min_v, 22)) {
                 vis[idx] = 1;
                 queue[tail++] = idx;
@@ -92,12 +93,15 @@ static void strip_white_flood(Image *img, int min_v, bool seed_center_cross) {
     free(queue);
 }
 
-static void strip_white_neutral(Image *img, int min_v, int max_diff) {
-    int total = img->width * img->height;
+static void strip_white_neutral_rect(Image *img, int x0, int y0, int x1, int y1,
+                                     int min_v, int max_diff) {
     Color *px = (Color *)img->data;
-    for (int i = 0; i < total; i++) {
-        if (is_near_white(px[i], min_v, max_diff)) {
-            px[i].a = 0;
+    for (int y = y0; y < y1; y++) {
+        for (int x = x0; x < x1; x++) {
+            int idx = y * img->width + x;
+            if (is_near_white(px[idx], min_v, max_diff)) {
+                px[idx].a = 0;
+            }
         }
     }
 }
@@ -113,10 +117,10 @@ static Texture2D load_texture_asset(const char *png_path, const char *jpg_path,
         if (img.data != NULL) {
             ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
             if (white_mode == WHITE_STRIP_FLOOD) {
-                strip_white_flood(&img, 232, false);
+                strip_white_flood_grid(&img, 1, 1, 232);
             } else if (white_mode == WHITE_STRIP_NEUTRAL) {
-                strip_white_flood(&img, 228, false);
-                strip_white_neutral(&img, 238, 12);
+                strip_white_flood_grid(&img, 1, 1, 228);
+                strip_white_neutral_rect(&img, 0, 0, img.width, img.height, 238, 12);
             }
             if (trim_vertical) {
                 Color *px = (Color *)img.data;
@@ -150,30 +154,32 @@ static Texture2D load_texture_asset(const char *png_path, const char *jpg_path,
     return tex;
 }
 
-static void load_props_2x2(const char *png_path, const char *jpg_path,
-                           bool strip_inner_white, Texture2D *out_tex, Rectangle out_rects[4]) {
+static void load_grid_sheet(const char *png_path, const char *jpg_path,
+                            int cols, int rows, int inner_white_cells,
+                            Texture2D *out_tex, Rectangle *out_rects) {
     const char *path = find_asset_path(png_path, jpg_path);
-    if (path == NULL) return;
+    if (path == NULL || cols <= 0 || rows <= 0) return;
 
     Image img = LoadImage(path);
     if (img.data == NULL) return;
 
     ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    strip_white_flood(&img, 230, true);
-    if (strip_inner_white) {
-        /* Tight neutral-white threshold clears gaps in branches/ribcage while protecting beige bone */
-        strip_white_neutral(&img, 240, 10);
-    }
+    strip_white_flood_grid(&img, cols, rows, 230);
 
     Color *px = (Color *)img.data;
-    int half_w = img.width / 2;
-    int half_h = img.height / 2;
+    int total_cells = cols * rows;
 
-    for (int q = 0; q < 4; q++) {
-        int qx = (q % 2) * half_w;
-        int qy = (q / 2) * half_h;
-        int x_end = (q % 2 == 0) ? half_w : img.width;
-        int y_end = (q / 2 == 0) ? half_h : img.height;
+    for (int i = 0; i < total_cells; i++) {
+        int c = i % cols;
+        int r = i / cols;
+        int qx    = (c * img.width) / cols;
+        int qy    = (r * img.height) / rows;
+        int x_end = ((c + 1) * img.width) / cols;
+        int y_end = ((r + 1) * img.height) / rows;
+
+        if (i < inner_white_cells) {
+            strip_white_neutral_rect(&img, qx, qy, x_end, y_end, 234, 14);
+        }
 
         int min_x = x_end, max_x = qx;
         int min_y = y_end, max_y = qy;
@@ -190,12 +196,15 @@ static void load_props_2x2(const char *png_path, const char *jpg_path,
         }
 
         if (max_x > min_x && max_y > min_y) {
-            out_rects[q] = (Rectangle){
+            out_rects[i] = (Rectangle){
                 (float)min_x, (float)min_y,
                 (float)(max_x - min_x + 1), (float)(max_y - min_y + 1)
             };
         } else {
-            out_rects[q] = (Rectangle){ (float)qx, (float)qy, (float)half_w, (float)half_h };
+            out_rects[i] = (Rectangle){
+                (float)qx, (float)qy,
+                (float)(x_end - qx), (float)(y_end - qy)
+            };
         }
     }
 
@@ -214,35 +223,48 @@ static void unload_if_loaded(Texture2D *tex) {
 }
 
 void assets_load(void) {
-    /* Zone 1 (Blood-Moon Courtyard — HD cathedral moon sky, iron fences, cobblestones & props) */
+    /* Zone 1 (Blood-Moon Courtyard) */
     WorldAssets *w = &g_assets.world;
     w->bg              = load_texture_asset("assets/zone_1/bg.png",    "assets/zone_1/bg.jpg",    WHITE_KEEP,          false, true);
     w->buildings       = load_texture_asset("assets/zone_1/front.png", "assets/zone_1/front.jpg", WHITE_STRIP_NEUTRAL, true,  true);
     w->floor           = load_texture_asset("assets/zone_1/floor.png", "assets/zone_1/floor.jpg", WHITE_KEEP,          false, true);
-    load_props_2x2("assets/zone_1/props.png", "assets/zone_1/props.jpg", true, &w->props, w->prop_rects);
+    load_grid_sheet("assets/zone_1/props.png", "assets/zone_1/props.jpg", 2, 2, 4, &w->props, w->prop_rects);
     w->fallback_moon   = load_texture_asset("assets/zone_1/background.png", NULL, WHITE_KEEP, false, true);
     w->fallback_statue = load_texture_asset("assets/zone_1/statue.png",     NULL, WHITE_KEEP, false, false);
 
-    /* Zone 2 (Cursed Catacombs — HD gothic crypt cavern, skull walls, rune floor & props) */
+    /* Zone 2 (Cursed Catacombs) */
     Zone2Assets *z2 = &g_assets.zone2;
     z2->bg        = load_texture_asset("assets/zone_2/bg.png",    "assets/zone_2/bg.jpg",    WHITE_KEEP,        false, true);
     z2->buildings = load_texture_asset("assets/zone_2/front.png", "assets/zone_2/front.jpg", WHITE_STRIP_FLOOD, true,  true);
     z2->floor     = load_texture_asset("assets/zone_2/floor.png", "assets/zone_2/floor.jpg", WHITE_KEEP,        false, true);
-    load_props_2x2("assets/zone_2/props.png", "assets/zone_2/props.jpg", false, &z2->props, z2->prop_rects);
+    load_grid_sheet("assets/zone_2/props.png", "assets/zone_2/props.jpg", 2, 2, 0, &z2->props, z2->prop_rects);
 
-    /* Zone 3 (Dead Streets — HD ruined city skyline, storefronts, street & props) */
+    /* Zone 3 (Dead Streets) */
     Zone3Assets *z3 = &g_assets.zone3;
     z3->bg        = load_texture_asset("assets/zone_3/bg.png",    "assets/zone_3/bg.jpg",    WHITE_KEEP,        false, true);
     z3->buildings = load_texture_asset("assets/zone_3/front.png", "assets/zone_3/front.jpg", WHITE_STRIP_FLOOD, true,  true);
     z3->road      = load_texture_asset("assets/zone_3/road.png",  "assets/zone_3/road.jpg",  WHITE_KEEP,        false, true);
-    load_props_2x2("assets/zone_3/props.png", "assets/zone_3/props.jpg", false, &z3->props, z3->prop_rects);
+    load_grid_sheet("assets/zone_3/props.png", "assets/zone_3/props.jpg", 2, 2, 0, &z3->props, z3->prop_rects);
 
-    /* Zone 4 (Crimson Canyon — HD eclipse boss sky, obsidian ritual arches, volcanic floor & props) */
+    /* Zone 4 (Crimson Canyon) */
     Zone4Assets *z4 = &g_assets.zone4;
     z4->bg        = load_texture_asset("assets/zone_4/bg.png",    "assets/zone_4/bg.jpg",    WHITE_KEEP,          false, true);
     z4->buildings = load_texture_asset("assets/zone_4/front.png", "assets/zone_4/front.jpg", WHITE_STRIP_NEUTRAL, true,  true);
     z4->floor     = load_texture_asset("assets/zone_4/floor.png", "assets/zone_4/floor.jpg", WHITE_KEEP,          false, true);
-    load_props_2x2("assets/zone_4/props.png", "assets/zone_4/props.jpg", true, &z4->props, z4->prop_rects);
+    load_grid_sheet("assets/zone_4/props.png", "assets/zone_4/props.jpg", 2, 2, 4, &z4->props, z4->prop_rects);
+
+    /* Hero, Modern Tactical Weapons & Pickups */
+    HeroAssets *h = &g_assets.hero;
+    load_grid_sheet("assets/hero/hero.png",    "assets/hero/hero.jpg",    4, 2, 0, &h->hero,    h->hero_rects);
+    load_grid_sheet("assets/hero/weapons.png", "assets/hero/weapons.jpg", 3, 2, 3, &h->weapons, h->weapon_rects);
+    load_grid_sheet("assets/hero/pickups.png", "assets/hero/pickups.jpg", 2, 2, 0, &h->pickups, h->pickup_rects);
+
+    /* Zombies & Final Boss (The Night Spirit) */
+    EnemyAssets *e = &g_assets.enemies;
+    load_grid_sheet("assets/enemies/zombies.png", "assets/enemies/zombies.jpg", 4, 3, 0,
+                    &e->zombies, e->zombie_rects);
+    load_grid_sheet("assets/enemies/boss.png",    "assets/enemies/boss.jpg",    4, 2, 0,
+                    &e->boss,    e->boss_rects);
 }
 
 void assets_unload(void) {
@@ -271,6 +293,15 @@ void assets_unload(void) {
     unload_if_loaded(&z4->buildings);
     unload_if_loaded(&z4->floor);
     unload_if_loaded(&z4->props);
+
+    HeroAssets *h = &g_assets.hero;
+    unload_if_loaded(&h->hero);
+    unload_if_loaded(&h->weapons);
+    unload_if_loaded(&h->pickups);
+
+    EnemyAssets *e = &g_assets.enemies;
+    unload_if_loaded(&e->zombies);
+    unload_if_loaded(&e->boss);
 }
 
 const Assets *assets_get(void) {

@@ -4,6 +4,7 @@
 #include "player.h"
 #include "zombie.h"
 #include "combat.h"
+#include "weapon.h"
 #include "world.h"
 #include "pickup.h"
 #include "score.h"
@@ -18,8 +19,8 @@ int main(void){
     SetExitKey(KEY_NULL);
     InitAudioDevice();
 
-    assets_load();                               // load pixel-art textures from assets/
-    score_load();                                // load saved high scores from scores.txt
+    assets_load();
+    score_load();
 
     GameScreen screen = Screen_Menu;
     Rectangle start_button  = {390, 300, 300, 65};
@@ -53,6 +54,7 @@ int main(void){
                 world_reset();
                 zombies_reset();
                 combat_reset();
+                player_reset();
             }
             else if(hover_scores && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
                 screen = Screen_Scores;
@@ -76,6 +78,7 @@ int main(void){
                 play_time += GetFrameTime();
 
                 player_update(&game);
+                weapon_update(&game);
                 combat_fire(&game);
                 combat_throw_bomb(&game);
                 combat_update(&game);
@@ -104,7 +107,7 @@ int main(void){
             }
         }
         else if(screen == Screen_GameOver || screen == Screen_Victory){
-            if(IsKeyPressed(KEY_ENTER)){         // play again
+            if(IsKeyPressed(KEY_ENTER)){
                 screen    = Screen_Play;
                 play_time = 0.0f;
                 PauseMusicStream(menu_music);
@@ -112,8 +115,9 @@ int main(void){
                 world_reset();
                 zombies_reset();
                 combat_reset();
+                player_reset();
             }
-            else if(IsKeyPressed(KEY_ESCAPE)){   // back to the menu
+            else if(IsKeyPressed(KEY_ESCAPE)){
                 screen = Screen_Menu;
                 ResumeMusicStream(menu_music);
             }
@@ -195,13 +199,14 @@ int main(void){
                 world_draw();
                 pickups_draw(&game);
                 zombies_draw(&game);
-                combat_draw(&game);
                 player_draw(&game);
+                combat_draw(&game);
                 world_draw_over(&game);
             EndMode2D();
 
             hud_draw(&game);
-            DrawText("WASD: move  LMB: shoot  RMB/G: bomb  Q: auto-aim  ESC: menu", 20, 695, 18, LIGHTGRAY);
+            DrawText("WASD: move  LMB: shoot  RMB/G: bomb  Wheel/Tab: gun  Q: auto-aim  ESC: menu",
+                     20, 695, 17, LIGHTGRAY);
         }
         else if(screen == Screen_Victory){
             world_draw_menu_bg(true);

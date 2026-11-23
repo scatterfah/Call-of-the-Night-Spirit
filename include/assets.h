@@ -38,10 +38,28 @@ typedef struct {
 } Zone4Assets;
 
 typedef struct {
+    Texture2D hero;            /* 4x2 sheet: 0..3 run, 4..5 idle, 6 bomb wind-up, 7 throw follow-through */
+    Rectangle hero_rects[8];
+    Texture2D weapons;         /* 3x2 sheet: 0 pistol, 1 shotgun, 2 SMG, 3 canister, 4 muzzle, 5 blast */
+    Rectangle weapon_rects[6];
+    Texture2D pickups;         /* 2x2 sheet: 0 medkit, 1 ammo tin, 2 bomb bundle, 3 Night Spirit crate */
+    Rectangle pickup_rects[4];
+} HeroAssets;
+
+typedef struct {
+    Texture2D zombies;         /* 4x3 sheet: row 0 walker, row 1 runner, row 2 tank (4 frames each) */
+    Rectangle zombie_rects[12];
+    Texture2D boss;            /* 4x2 sheet: 0..3 hover, 4 telegraph, 5 dash, 6 summon, 7 enraged */
+    Rectangle boss_rects[8];
+} EnemyAssets;
+
+typedef struct {
     WorldAssets world;
     Zone2Assets zone2;
     Zone3Assets zone3;
     Zone4Assets zone4;
+    HeroAssets  hero;
+    EnemyAssets enemies;
 } Assets;
 
 void          assets_load(void);     /* call once after InitWindow() */
