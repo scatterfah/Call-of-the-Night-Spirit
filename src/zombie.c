@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "raylib.h"
 #include "zombie.h"
+#include "assets.h"
 #include "pickup.h"
 #include "world.h"
 
@@ -17,21 +18,25 @@ typedef struct {
     float speed;
     float radius;
     int   damage;
-    Color color;
+    float draw_height;
+    float anim_fps;
+    Color fallback_color;
+    Color cue_color;
 } ZombieStats;
 
 /* one row per ZombieType, in the same order as the enum */
 static const ZombieStats STATS[4] = {
-    /* WALKER */ {   50,  70.0f, 18.0f, 10, {  30, 110,  40, 255 } },
-    /* RUNNER */ {   25, 150.0f, 14.0f,  8, { 230, 140,  30, 255 } },
-    /* TANK   */ {  160,  45.0f, 26.0f, 20, { 120,  40,  40, 255 } },
-    /* BOSS   */ { 1200,  68.0f, 38.0f, 25, { 145,  20,  75, 255 } },
+    /* WALKER */ {   50,  70.0f, 18.0f, 10,  64.0f,  6.5f, {  30, 110,  40, 255 }, { 195, 225, 130, 220 } },
+    /* RUNNER */ {   25, 150.0f, 14.0f,  8,  56.0f, 13.0f, { 230, 140,  30, 255 }, { 255, 155,  45, 235 } },
+    /* TANK   */ {  160,  45.0f, 26.0f, 20,  86.0f,  5.5f, { 120,  40,  40, 255 }, { 255,  70,  80, 235 } },
+    /* BOSS   */ { 1200,  68.0f, 38.0f, 25, 118.0f,  7.5f, { 145,  20,  75, 255 }, { 205,  70, 245, 240 } },
 };
 
 static int   wave        = 0;
 static float break_timer = FIRST_BREAK;
 static float spawn_timer = 0.0f;
 static float hurt_timer  = 0.0f;
+static float anim_clock  = 0.0f;
 
 /* Final Boss state */
 static bool  boss_spawned     = false;
@@ -46,12 +51,14 @@ static float boss_dash_t      = 0.0f;
 static float boss_dash_vx     = 0.0f;
 static float boss_dash_vy     = 0.0f;
 static float boss_summon_cd   = 0.0f;
+static float boss_summon_fx_t = 0.0f;
 
 void zombies_reset(void) {
     wave        = 0;
     break_timer = FIRST_BREAK;
     spawn_timer = 0.0f;
     hurt_timer  = 0.0f;
+    anim_clock  = 0.0f;
 
     boss_spawned     = false;
     boss_active      = false;
@@ -65,6 +72,7 @@ void zombies_reset(void) {
     boss_dash_vx     = 0.0f;
     boss_dash_vy     = 0.0f;
     boss_summon_cd   = 0.0f;
+    boss_summon_fx_t = 0.0f;
 }
 
 int   waves_number(void)      { return wave; }
@@ -153,7 +161,6 @@ static void spawn_final_boss(GameState *g) {
     float min_y = world_ground_top() + r + 24.0f;
     float max_y = world_ground_bottom() - r - 24.0f;
 
-    /* Prefer the opposite half of the canyon from the player */
     float pref_min_x = (g->player_x < mid_x) ? (mid_x + 120.0f) : min_x;
     float pref_max_x = (g->player_x < mid_x) ? max_x : (mid_x - 120.0f);
 
@@ -186,6 +193,7 @@ static void spawn_final_boss(GameState *g) {
     boss_telegraph_t = 0.0f;
     boss_dash_t      = 0.0f;
     boss_summon_cd   = 6.5f;
+    boss_summon_fx_t = 0.0f;
 }
 
 static void pull_into_active_zone(const GameState *g, Zombie *z) {
@@ -305,6 +313,11 @@ static void boss_update_ai(GameState *g, Zombie *z, float dt) {
     bool enraged = (z->hp * 2 <= z->max_hp);
     boss_cur_hp  = z->hp;
 
+    if (boss_summon_fx_t > 0.0f) {
+        boss_summon_fx_t -= dt;
+        if (boss_summon_fx_t < 0.0f) boss_summon_fx_t = 0.0f;
+    }
+
     /* 1. Shadow Dash execution */
     if (boss_dash_t > 0.0f) {
         boss_dash_t -= dt;
@@ -367,6 +380,7 @@ static void boss_update_ai(GameState *g, Zombie *z, float dt) {
     if (boss_summon_cd <= 0.0f) {
         boss_summon_cd = enraged ? 5.5f : 7.5f;
         if ((int)list_size(g->zombies) - 1 < BOSS_MAX_MINIONS) {
+            boss_summon_fx_t = 0.65f;
             spawn_near_player(g, ZOMBIE_RUNNER);
             if ((int)list_size(g->zombies) - 1 < BOSS_MAX_MINIONS) {
                 spawn_near_player(g, enraged ? ZOMBIE_RUNNER : ZOMBIE_WALKER);
@@ -377,6 +391,7 @@ static void boss_update_ai(GameState *g, Zombie *z, float dt) {
 
 void zombies_update(GameState *g) {
     float dt = GetFrameTime();
+    anim_clock += dt;
 
     if (boss_intro_t > 0.0f) {
         boss_intro_t -= dt;
@@ -481,8 +496,11 @@ void zombies_update(GameState *g) {
 }
 
 static void draw_boss(const GameState *g, const Zombie *z) {
+    const EnemyAssets *ea = &assets_get()->enemies;
     float time    = (float)GetTime();
     bool  enraged = (z->hp * 2 <= z->max_hp);
+    bool  dashing = (boss_dash_t > 0.0f);
+    bool  windup  = (boss_telegraph_t > 0.0f);
     float bob     = sinf(time * 4.2f) * 5.0f;
     float cx      = z->x;
     float cy      = z->y + bob;
@@ -491,7 +509,7 @@ static void draw_boss(const GameState *g, const Zombie *z) {
     Color eye_col  = enraged ? (Color){ 255, 235,  90, 255 } : (Color){ 255,  70, 115, 255 };
 
     /* 1. Telegraph laser beam right before a Shadow Dash */
-    if (boss_telegraph_t > 0.0f) {
+    if (windup) {
         float pulse = 0.5f + 0.5f * sinf(time * 28.0f);
         Color beam = { 255, 50, 85, (unsigned char)(110.0f + 120.0f * pulse) };
         Vector2 start = { cx, cy };
@@ -500,28 +518,54 @@ static void draw_boss(const GameState *g, const Zombie *z) {
         DrawCircleLines((int)cx, (int)cy, z->radius + 14.0f + 8.0f * pulse, beam);
     }
 
-    /* 2. Ground shadow & pulsing cursed aura */
-    DrawEllipse((int)z->x, (int)(z->y + z->radius * 0.72f), 42.0f, 14.0f, (Color){ 0, 0, 0, 165 });
-    float aura_r = z->radius + 10.0f + 4.0f * sinf(time * 6.0f);
-    DrawCircle((int)cx, (int)cy, aura_r + 8.0f, (Color){ aura_col.r, aura_col.g, aura_col.b, 38 });
-    DrawCircle((int)cx, (int)cy, aura_r,        (Color){ aura_col.r, aura_col.g, aura_col.b, 72 });
+    /* 2. Ground shadow & pulsing cursed aura (keeps cloak silhouette readable over dark rock) */
+    DrawEllipse((int)z->x, (int)(z->y + z->radius * 0.78f), 44.0f, 14.0f, (Color){ 0, 0, 0, 175 });
+    float aura_r = z->radius + 12.0f + 4.0f * sinf(time * 6.0f);
+    DrawCircle((int)cx, (int)cy, aura_r + 10.0f, (Color){ aura_col.r, aura_col.g, aura_col.b, 42 });
+    DrawCircle((int)cx, (int)cy, aura_r,        (Color){ aura_col.r, aura_col.g, aura_col.b, 78 });
 
     /* 3. Orbiting spirit wisps */
     float orbit_speed = enraged ? 4.4f : 2.6f;
     for (int i = 0; i < 3; i++) {
         float a  = time * orbit_speed + (float)i * 2.094f;
-        float ox = cx + cosf(a) * (z->radius + 12.0f);
+        float ox = cx + cosf(a) * (z->radius + 14.0f);
         float oy = cy + sinf(a) * (z->radius * 0.75f);
-        DrawCircle((int)ox, (int)oy, 5.0f, aura_col);
+        DrawCircle((int)ox, (int)oy, 5.5f, aura_col);
         DrawCircle((int)ox, (int)oy, 2.5f, WHITE);
     }
 
-    /* 4. Spectral Night Spirit body & tattered hood */
+    /* 4. HD Night Spirit sprite sheet (4x2: 0..3 hover, 4 telegraph, 5 dash, 6 summon, 7 enraged) */
+    if (ea->boss.id != 0 && ea->boss_rects[0].height > 0.0f) {
+        int frame;
+        if (dashing)                frame = 5;
+        else if (windup)            frame = 4;
+        else if (boss_summon_fx_t > 0.0f) frame = 6;
+        else if (enraged)           frame = 7;
+        else                        frame = ((int)(anim_clock * STATS[ZOMBIE_BOSS].anim_fps)) % 4;
+
+        Rectangle src = ea->boss_rects[frame];
+        float target_h = STATS[ZOMBIE_BOSS].draw_height;
+        float scale    = target_h / src.height;
+        float draw_w   = src.width * scale;
+        float draw_h   = target_h;
+
+        float dir_x = dashing ? boss_dash_vx : (g->player_x - cx);
+        if (dir_x < -0.01f) {
+            src.width = -src.width;
+        }
+
+        float foot_y = z->y + z->radius * 0.85f + bob * 0.5f;
+        Rectangle dst = { cx - draw_w * 0.5f, foot_y - draw_h, draw_w, draw_h };
+        Color tint = enraged ? (Color){ 255, 225, 235, 255 } : WHITE;
+        DrawTexturePro(ea->boss, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, tint);
+        return;
+    }
+
+    /* Fallback vector boss if assets/enemies/boss.png is absent */
     DrawCircle((int)cx, (int)cy, z->radius, (Color){ 22, 8, 34, 245 });
     DrawCircleLines((int)cx, (int)cy, z->radius, aura_col);
     DrawCircle((int)cx, (int)(cy - 6.0f), z->radius * 0.68f, (Color){ 42, 12, 56, 255 });
 
-    /* Jagged spectral crown horns */
     DrawTriangle((Vector2){ cx - 22.0f, cy - 18.0f },
                  (Vector2){ cx - 10.0f, cy - 28.0f },
                  (Vector2){ cx - 26.0f, cy - 42.0f }, aura_col);
@@ -529,7 +573,6 @@ static void draw_boss(const GameState *g, const Zombie *z) {
                  (Vector2){ cx + 22.0f, cy - 18.0f },
                  (Vector2){ cx + 26.0f, cy - 42.0f }, aura_col);
 
-    /* 5. Glowing eyes facing toward the player */
     float dx = g->player_x - cx;
     float dy = g->player_y - cy;
     float d  = sqrtf(dx * dx + dy * dy);
@@ -542,24 +585,70 @@ static void draw_boss(const GameState *g, const Zombie *z) {
     DrawCircle((int)(cx + 10.0f + look_x), (int)(cy - 6.0f + look_y), 2.2f, WHITE);
 }
 
+static void draw_minion_zombie(const GameState *g, const Zombie *z) {
+    const EnemyAssets *ea = &assets_get()->enemies;
+    const ZombieStats *st = &STATS[z->type];
+
+    int row = 0;
+    if (z->type == ZOMBIE_RUNNER)    row = 1;
+    else if (z->type == ZOMBIE_TANK) row = 2;
+
+    int base_idx = row * 4;
+    float foot_y = z->y + z->radius * 0.85f;
+
+    /* Ground shadow + subtle contrast cue so dark clothing/husk stands out over dark floors */
+    DrawEllipse((int)z->x, (int)(foot_y - 2.0f), z->radius * 0.95f, 6.5f, (Color){ 0, 0, 0, 175 });
+    DrawEllipseLines((int)z->x, (int)(foot_y - 2.0f), z->radius * 0.95f, 6.5f,
+                     (Color){ st->cue_color.r, st->cue_color.g, st->cue_color.b, 85 });
+
+    if (ea->zombies.id != 0 && ea->zombie_rects[base_idx].height > 0.0f) {
+        int frame = ((int)(anim_clock * st->anim_fps)) % 4;
+        Rectangle src = ea->zombie_rects[base_idx + frame];
+
+        /* Scale relative to the Walker's baseline height so Tank is visibly massive and Runner nimble */
+        float base_h   = ea->zombie_rects[0].height;
+        float target_h = st->draw_height * (src.height / base_h);
+        float draw_w   = src.width * (target_h / src.height);
+        float draw_h   = target_h;
+
+        float dx = g->player_x - z->x;
+        if (dx < -0.01f) {
+            src.width = -src.width;
+        }
+
+        /* Slight brightness lift + crisp outline separation against dark zones */
+        Color tint = (z->type == ZOMBIE_TANK)
+                   ? (Color){ 255, 232, 232, 255 }
+                   : (Color){ 248, 244, 252, 255 };
+
+        Rectangle dst = { z->x - draw_w * 0.5f, foot_y - draw_h, draw_w, draw_h };
+        DrawTexturePro(ea->zombies, src, dst, (Vector2){ 0.0f, 0.0f }, 0.0f, tint);
+    } else {
+        DrawCircle((int)z->x, (int)z->y, z->radius, st->fallback_color);
+        DrawCircleLines((int)z->x, (int)z->y, z->radius, WHITE);
+    }
+
+    /* Crisp floating health bar above damaged zombies */
+    if (z->hp < z->max_hp) {
+        float ratio = (float)z->hp / (float)z->max_hp;
+        if (ratio < 0.0f) ratio = 0.0f;
+        int bar_w = (int)(z->radius * 2.0f);
+        int bar_x = (int)(z->x - z->radius);
+        int bar_y = (int)(foot_y - st->draw_height - 10.0f);
+        DrawRectangle(bar_x - 1, bar_y - 1, bar_w + 2, 6, (Color){ 10, 6, 16, 220 });
+        DrawRectangle(bar_x, bar_y, bar_w, 4, DARKGRAY);
+        DrawRectangle(bar_x, bar_y, (int)((float)bar_w * ratio), 4, RED);
+    }
+}
+
 void zombies_draw(const GameState *g) {
     for (ListNode *node = g->zombies->head; node != NULL; node = node->next) {
         const Zombie *z = node->data;
 
         if (z->type == ZOMBIE_BOSS) {
             draw_boss(g, z);
-            continue;
+        } else {
+            draw_minion_zombie(g, z);
         }
-
-        DrawCircle((int)z->x, (int)z->y, z->radius, STATS[z->type].color);
-        DrawCircleLines((int)z->x, (int)z->y, z->radius, WHITE);
-
-        float ratio = (float)z->hp / (float)z->max_hp;
-        if (ratio < 0.0f) ratio = 0.0f;
-        int bar_w = (int)(z->radius * 2.0f);
-        int bar_x = (int)(z->x - z->radius);
-        int bar_y = (int)(z->y - z->radius - 8.0f);
-        DrawRectangle(bar_x, bar_y, bar_w, 4, DARKGRAY);
-        DrawRectangle(bar_x, bar_y, (int)((float)bar_w * ratio), 4, RED);
     }
 }
